@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Design a Batik Cloth</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%AA%B5%3C/text%3E%3C/svg%3E">
+<meta name="description" content="An interactive batik design tool: pick traditional motifs, or make a cloth with wax-resist dyeing and see it as a scarf.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --wax: #F7F1E1;
+  --wax-dim: #EADFC3;
+  --ink: #2A241B;
+  --ink-soft: #6B6150;
+  --indigo: #203A5C;
+  --indigo-soft: #E1E9F2;
+  --panel-bg: #ffffff;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --wax: #E7DCBE; --panel-bg: #F1E7CE; }
+}
+:root[data-theme="dark"] { --wax: #E7DCBE; --panel-bg: #F1E7CE; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--wax); color: var(--ink); font-family: 'Nunito', sans-serif; }
+body { padding: 22px 16px 56px; }
+.wrap { max-width: 980px; margin: 0 auto; }
+[hidden] { display: none !important; }
+
+h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 26px; margin: 0 0 6px; color: var(--indigo); }
+.sub { font-size: 14px; color: var(--ink-soft); margin: 0 0 18px; max-width: 66ch; line-height: 1.55; }
+
+.mode-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.mode-btn {
+  padding: 10px 18px; border-radius: 4px; border: 1px solid var(--wax-dim); background: var(--panel-bg);
+  font-family: 'Fraunces', serif; font-weight: 700; font-size: 14px; color: var(--ink-soft); cursor: pointer;
+}
+.mode-btn.active { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+
+.layout { display: grid; grid-template-columns: 1.15fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+.stage { background: var(--panel-bg); border-radius: 6px; padding: 14px; box-shadow: 0 8px 20px rgba(30,25,15,0.1); }
+.swatch-wrap { position: relative; width: 100%; aspect-ratio: 3/2; border-radius: 4px; overflow: hidden; }
+.swatch-wrap svg { display: block; width: 100%; height: 100%; }
+#waxCanvas { display: block; width: 100%; height: auto; aspect-ratio: 3/2; border-radius: 4px; cursor: crosshair; touch-action: none; background: #F4ECD8; }
+
+.panel { background: var(--panel-bg); border-radius: 6px; padding: 20px 22px; box-shadow: 0 8px 20px rgba(30,25,15,0.1); }
+.control-group { margin-bottom: 18px; }
+.control-label { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 700; margin-bottom: 8px; display: block; }
+
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn-grid.three { grid-template-columns: repeat(3, 1fr); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.opt-btn {
+  padding: 10px; border-radius: 4px; border: 1px solid var(--wax-dim); background: var(--wax);
+  font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 13px; color: var(--ink);
+  cursor: pointer; text-align: left; transition: border-color 0.12s ease, background 0.12s ease;
+}
+.opt-btn.active { border-color: var(--indigo); background: var(--indigo-soft); }
+.opt-btn.small { padding: 7px 12px; text-align: center; }
+
+.tab-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.tab-btn {
+  flex: 1; padding: 7px 0; border-radius: 4px; border: 1px solid var(--wax-dim); background: transparent;
+  font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 12px; color: var(--ink-soft); cursor: pointer;
+}
+.tab-btn.active { background: var(--indigo); border-color: var(--indigo); color: white; }
+
+.palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.palette-btn { height: 44px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; position: relative; }
+.palette-btn.active { border-color: var(--indigo); }
+.palette-btn.active::after {
+  content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 14px; text-shadow: 0 0 2px rgba(0,0,0,0.6);
+}
+
+.meaning-box { border-top: 1px solid var(--wax-dim); padding-top: 14px; margin-top: 4px; }
+.meaning-box .mname { font-family: 'Fraunces', serif; font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+.meaning-box .mtext { font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+
+.stepper { display: flex; gap: 6px; margin-top: 12px; }
+.step-chip {
+  flex: 1; text-align: center; padding: 6px 4px; border-radius: 4px; border: 1px solid var(--wax-dim);
+  font-family: 'Fraunces', serif; font-weight: 700; font-size: 12px; color: var(--ink-soft); background: var(--wax);
+}
+.step-chip.active { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+.status { margin: 12px 2px 2px; font-size: 13px; line-height: 1.55; color: var(--ink); min-height: 4.2em; }
+
+.dye-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.dye-btn { height: 34px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; position: relative; aspect-ratio: 1; height: auto; }
+.dye-btn.active { border-color: var(--ink); }
+.dye-btn.active::after {
+  content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 13px; text-shadow: 0 0 2px rgba(0,0,0,0.6);
+}
+.dye-name { font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+
+input[type="range"] { width: 100%; accent-color: var(--indigo); }
+.range-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); margin-bottom: 2px; }
+
+.action-btn {
+  padding: 11px 14px; border-radius: 4px; border: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 14px;
+  cursor: pointer; color: #fff; background: var(--indigo); flex: 1; min-width: 120px;
+}
+.action-btn.alt { background: #8B4A2B; }
+.action-btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--wax-dim); font-family: 'Nunito', sans-serif; font-size: 13px; flex: 0 0 auto; min-width: 0; }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tip { font-size: 12px; color: var(--ink-soft); line-height: 1.55; border-top: 1px solid var(--wax-dim); padding-top: 12px; margin-top: 6px; }
+
+.wear-card { margin-top: 26px; background: var(--panel-bg); border-radius: 6px; padding: 20px 22px; box-shadow: 0 8px 20px rgba(30,25,15,0.1); }
+.wear-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.wear-head h2 { font-family: 'Fraunces', serif; font-size: 18px; margin: 0; color: var(--indigo); }
+.wear-body { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: center; }
+@media (max-width: 800px) { .wear-body { grid-template-columns: 1fr; } }
+.wear-stage { position: relative; background: #EFE7D2; border-radius: 6px; padding: 10px; }
+#wearCanvas { display: block; width: 100%; max-width: 440px; margin: 0 auto; height: auto; aspect-ratio: 3/2; }
+.wear-msg {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 24px; font-size: 14px; color: var(--ink-soft); line-height: 1.5;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Design a batik cloth</h1>
+  <p class="sub">Try two ways to make batik: pick motifs in the pattern studio, or make a cloth the traditional way in the wax-resist studio. Then see your cloth as a scarf.</p>
+
+  <div class="mode-tabs">
+    <button class="mode-btn active" id="modeBtnPattern" onclick="setMode('pattern')">Pattern studio</button>
+    <button class="mode-btn" id="modeBtnWax" onclick="setMode('wax')">Wax-resist studio</button>
+  </div>
+
+  <section id="patternStudio">
+    <div class="layout">
+      <div class="stage">
+        <div class="swatch-wrap" id="swatchBox"></div>
+      </div>
+      <div class="panel">
+        <div class="control-group">
+          <span class="control-label">Motif</span>
+          <div class="btn-grid" id="motifGrid"></div>
+        </div>
+        <div class="control-group">
+          <span class="control-label">Color palette</span>
+          <div class="tab-row">
+            <button class="tab-btn active" id="tabTrad" onclick="setTab('traditional')">Traditional dyes</button>
+            <button class="tab-btn" id="tabModern" onclick="setTab('modern')">Modern dyes</button>
+          </div>
+          <div class="palette-grid" id="paletteGrid"></div>
+        </div>
+        <div class="meaning-box">
+          <span class="mname" id="motifName"></span>
+          <span class="mtext" id="motifMeaning"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="waxStudio" hidden>
+    <div class="layout">
+      <div class="stage">
+        <canvas id="waxCanvas"></canvas>
+        <div class="stepper">
+          <div class="step-chip" id="chipWax">1 Wax</div>
+          <div class="step-chip" id="chipDip">2 Dip</div>
+          <div class="step-chip" id="chipBoil">3 Boil out</div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+      <div class="panel">
+        <div class="control-group">
+          <span class="control-label">Wax tool</span>
+          <div class="btn-grid three">
+            <button class="opt-btn active" data-tool="line" onclick="setTool('line')">Canting (pen)</button>
+            <button class="opt-btn" data-tool="dots" onclick="setTool('dots')">Dots</button>
+            <button class="opt-btn" data-tool="stamp" onclick="setTool('stamp')">Cap (stamp)</button>
+          </div>
+          <div class="btn-row" id="stampShapes" style="margin-top:8px" hidden>
+            <button class="opt-btn small active" data-shape="flower" onclick="setShape('flower')">Flower</button>
+            <button class="opt-btn small" data-shape="ring" onclick="setShape('ring')">Ring</button>
+            <button class="opt-btn small" data-shape="diamond" onclick="setShape('diamond')">Diamond</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <div class="range-label"><span class="control-label" style="margin:0">Brush size</span><span id="brushVal">8</span></div>
+          <input type="range" id="brush" min="2" max="20" value="8" oninput="setBrush(this.value)">
+        </div>
+        <div class="control-group">
+          <div class="range-label"><span class="control-label" style="margin:0">Wax crackle</span><span id="crackVal">45</span></div>
+          <input type="range" id="crack" min="0" max="100" value="45" oninput="setCrack(this.value)">
+        </div>
+        <div class="control-group">
+          <span class="control-label">Dye</span>
+          <div class="dye-grid" id="dyeGrid"></div>
+          <div class="dye-name" id="dyeName"></div>
+        </div>
+        <div class="control-group">
+          <div class="btn-row">
+            <button class="action-btn" id="dipBtn" onclick="doDip()">Dip in dye</button>
+            <button class="action-btn alt" id="boilBtn" onclick="boil()">Boil out wax</button>
+          </div>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="action-btn ghost" id="undoBtn" onclick="undoStroke()">Undo wax</button>
+            <button class="action-btn ghost" onclick="resetCloth()">Start a new cloth</button>
+            <span class="dye-name" id="dipCount" style="align-self:center"></span>
+          </div>
+        </div>
+        <div class="tip">Real batik: wax is drawn with a canting (a pen) or pressed on with a copper stamp called a cap. Wax resists dye, so waxed areas keep their color. But wax cracks when the cloth is dipped or crumpled, and dye seeps through those hairline cracks. That crackle is the signature look of real batik. Artists dye, add more wax, and dye again, working from light to dark. At the end, the wax is boiled out.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wear-card">
+    <div class="wear-head">
+      <h2>See it as a scarf</h2>
+      
+    </div>
+    <div class="wear-body">
+      <div class="wear-stage">
+        <canvas id="wearCanvas" width="360" height="240"></canvas>
+        <div class="wear-msg" id="wearMsg" hidden></div>
+      </div>
+      <div>
+        <div class="range-label"><span class="control-label" style="margin:0">Pattern size</span><span id="scaleVal">50%</span></div>
+        <input type="range" id="wearScale" min="25" max="100" value="50" oninput="setWearScale(this.value)">
+        <p class="sub" style="margin:14px 0 0">Your cloth is repeated across the scarf, the way printed fabric is cut from a larger roll. Make the pattern larger or smaller to see how the motifs change the look.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+var mode = 'pattern';
+
+/* ---------- Pattern studio ---------- */
+var motifs = [
+  { key: 'parang', label: 'Parang', meaning: 'A diagonal wave pattern historically reserved for royalty in some Javanese courts. Its unbroken diagonal lines symbolize continuity and strength.' },
+  { key: 'kawung', label: 'Kawung', meaning: 'Overlapping circles resembling the cross-section of a sugar palm fruit. Associated with purity, self-control, and the four cardinal directions.' },
+  { key: 'truntum', label: 'Truntum', meaning: "Small star-like blossoms scattered evenly across the cloth. Traditionally worn by parents at their child's wedding, symbolizing guiding, unconditional love." },
+  { key: 'mendung', label: 'Mega mendung', meaning: 'Layered cloud shapes from the coastal city of Cirebon, reflecting Chinese trading influence on local design. Symbolizes patience, since clouds bring rain only once they are full.' }
+];
+var palettes = {
+  traditional: [
+    { bg: '#F0E6CC', fg: '#203A5C', name: 'Indigo on cream' },
+    { bg: '#F0E6CC', fg: '#6B4226', name: 'Soga brown on cream' },
+    { bg: '#8B5A2B', fg: '#1F3A5F', name: 'Indigo on soga' },
+    { bg: '#F0E6CC', fg: '#2B2B28', name: 'Tulis black on cream' }
+  ],
+  modern: [
+    { bg: '#FBF6EA', fg: '#E0603D', name: 'Coral on ivory' },
+    { bg: '#1E6F6B', fg: '#E8B23D', name: 'Gold on teal' },
+    { bg: '#2BA6A0', fg: '#C23B74', name: 'Magenta on turquoise' },
+    { bg: '#1C2C4C', fg: '#E8C23D', name: 'Yellow on navy' }
+  ]
+};
+var currentMotif = 'kawung', currentTab = 'traditional', currentPalette = 0;
+
+function motifDefs(key, fg, bg) {
+  if (key === 'parang') {
+    var rows = '';
+    [10, 30, 50].forEach(function (y) {
+      rows += '<path d="M0,' + y + ' Q15,' + (y - 10) + ' 30,' + y + ' T60,' + y + '" fill="none" stroke="' + fg + '" stroke-width="6" stroke-linecap="round"/>';
+      rows += '<circle cx="15" cy="' + y + '" r="2.2" fill="' + fg + '"/><circle cx="45" cy="' + y + '" r="2.2" fill="' + fg + '"/>';
+    });
+    return '<pattern id="p" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' + rows + '</pattern>';
+  }
+  if (key === 'kawung') {
+    return '<pattern id="p" width="56" height="56" patternUnits="userSpaceOnUse"><g fill="' + fg + '">' +
+      '<ellipse cx="28" cy="14" rx="10" ry="14"/><ellipse cx="28" cy="42" rx="10" ry="14"/>' +
+      '<ellipse cx="14" cy="28" rx="14" ry="10"/><ellipse cx="42" cy="28" rx="14" ry="10"/></g>' +
+      '<circle cx="28" cy="28" r="5" fill="' + bg + '"/></pattern>';
+  }
+  if (key === 'truntum') {
+    return '<pattern id="p" width="40" height="40" patternUnits="userSpaceOnUse"><g fill="' + fg + '">' +
+      '<circle cx="20" cy="14" r="3"/><circle cx="14" cy="22" r="3"/><circle cx="26" cy="22" r="3"/>' +
+      '<circle cx="20" cy="29" r="3"/><circle cx="20" cy="21" r="2.6"/></g></pattern>';
+  }
+  var wave = function (y0, off) {
+    var d = 'M' + off + ',' + y0;
+    for (var x = off; x < 100; x += 24) { d += ' Q' + (x + 12) + ',' + (y0 - 14) + ' ' + (x + 24) + ',' + y0; }
+    return '<path d="' + d + '" fill="none" stroke="' + fg + '" stroke-width="3.5"/>';
+  };
+  return '<pattern id="p" width="100" height="70" patternUnits="userSpaceOnUse">' +
+    wave(20, 0) + wave(34, -6) + wave(48, 0) + wave(62, -6) + '</pattern>';
+}
+function clothSVG(key, fg, bg, w, h, vbw, vbh) {
+  vbw = vbw || 300; vbh = vbh || 200;
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + vbw + ' ' + vbh + '" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice">' +
+    '<defs>' + motifDefs(key, fg, bg) + '</defs>' +
+    '<rect width="' + vbw + '" height="' + vbh + '" fill="' + bg + '"/><rect width="' + vbw + '" height="' + vbh + '" fill="url(#p)"/></svg>';
+}
+var exportCells = {
+  parang: [169.706, 169.706],
+  kawung: [224, 224],
+  truntum: [240, 240],
+  mendung: [200, 210]
+};
+function curPalette() { return palettes[currentTab][currentPalette]; }
+
+function buildMotifButtons() {
+  var grid = document.getElementById('motifGrid');
+  grid.innerHTML = '';
+  motifs.forEach(function (m) {
+    var b = document.createElement('button');
+    b.className = 'opt-btn' + (m.key === currentMotif ? ' active' : '');
+    b.textContent = m.label;
+    b.onclick = function () { currentMotif = m.key; applyPattern(); };
+    grid.appendChild(b);
+  });
+}
+function buildPaletteButtons() {
+  var grid = document.getElementById('paletteGrid');
+  grid.innerHTML = '';
+  palettes[currentTab].forEach(function (p, i) {
+    var b = document.createElement('button');
+    b.className = 'palette-btn' + (i === currentPalette ? ' active' : '');
+    b.style.background = 'linear-gradient(135deg, ' + p.bg + ' 50%, ' + p.fg + ' 50%)';
+    b.title = p.name;
+    b.onclick = function () { currentPalette = i; applyPattern(); };
+    grid.appendChild(b);
+  });
+}
+function setTab(tab) {
+  currentTab = tab; currentPalette = 0;
+  document.getElementById('tabTrad').classList.toggle('active', tab === 'traditional');
+  document.getElementById('tabModern').classList.toggle('active', tab === 'modern');
+  applyPattern();
+}
+function applyPattern() {
+  var p = curPalette();
+  document.getElementById('swatchBox').innerHTML = clothSVG(currentMotif, p.fg, p.bg, '100%', '100%');
+  var m = motifs.filter(function (x) { return x.key === currentMotif; })[0];
+  document.getElementById('motifName').textContent = m.label;
+  document.getElementById('motifMeaning').textContent = m.meaning;
+  buildMotifButtons();
+  buildPaletteButtons();
+  if (mode === 'pattern') renderWear();
+}
+function makePatternCanvas(cb) {
+  var p = curPalette();
+  var cell = exportCells[currentMotif];
+  var pw = Math.round(cell[0] * 2), ph = Math.round(cell[1] * 2);
+  var img = new Image();
+  img.onload = function () {
+    var c = document.createElement('canvas'); c.width = pw; c.height = ph;
+    c.getContext('2d').drawImage(img, 0, 0, pw, ph);
+    cb(c);
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(clothSVG(currentMotif, p.fg, p.bg, pw, ph, cell[0], cell[1]));
+}
+
+/* ---------- Wax-resist studio ---------- */
+var W = 600, H = 400;
+function mk() { var c = document.createElement('canvas'); c.width = W; c.height = H; return c; }
+var disp = document.getElementById('waxCanvas'); disp.width = W; disp.height = H;
+var colorC = mk(), waxC = mk(), pendC = mk(), overC = mk();
+var crackC = mk(), crackTintC = mk(), cwaxC = mk(), maskC = mk(), tintC = mk();
+var crackAmount = 45, statusOverride = '';
+var dyes = [
+  { name: 'Indigo', hex: '#3A5E9C', oxidizes: true },
+  { name: 'Soga brown', hex: '#C48A4E' },
+  { name: 'Turmeric yellow', hex: '#F2C230' },
+  { name: 'Madder red', hex: '#D8503F' },
+  { name: 'Teal', hex: '#2E9E96' },
+  { name: 'Magenta', hex: '#D0488A' }
+];
+var dyeIndex = 0, tool = 'line', stampShape = 'flower', brush = 8;
+var strokes = [], dipCount = 0, boiled = false, boilAlpha = 1, busy = false;
+var drawing = false, cur = null, lastDot = null, frameQueued = false;
+
+function resetCloth() {
+  var c = colorC.getContext('2d');
+  c.globalCompositeOperation = 'source-over';
+  c.fillStyle = '#F4ECD8'; c.fillRect(0, 0, W, H);
+  c.strokeStyle = 'rgba(120,100,60,0.07)'; c.lineWidth = 1;
+  for (var x = 0; x < W; x += 3) { c.beginPath(); c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, H); c.stroke(); }
+  for (var y = 0; y < H; y += 3) { c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.stroke(); }
+  waxC.getContext('2d').clearRect(0, 0, W, H);
+  pendC.getContext('2d').clearRect(0, 0, W, H);
+  strokes = []; dipCount = 0; boiled = false; boilAlpha = 1; busy = false;
+  updateUI(); compose(); renderWear();
+}
+
+function compose(extra) {
+  var ctx = disp.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(colorC, 0, 0);
+  if (extra) {
+    ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = extra.alpha;
+    ctx.drawImage(extra.canvas, 0, 0); ctx.restore();
+  }
+  if (boilAlpha > 0) {
+    var o = overC.getContext('2d');
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1; o.clearRect(0, 0, W, H);
+    o.drawImage(waxC, 0, 0); o.drawImage(pendC, 0, 0);
+    o.globalCompositeOperation = 'source-in'; o.fillStyle = '#FFE9A8'; o.fillRect(0, 0, W, H);
+    if (extra && extra.crackAlpha > 0) {
+      o.globalCompositeOperation = 'source-atop'; o.globalAlpha = extra.crackAlpha;
+      o.drawImage(crackTintC, 0, 0); o.globalAlpha = 1;
+    }
+    o.globalCompositeOperation = 'source-over';
+    ctx.save();
+    ctx.shadowColor = 'rgba(110,70,0,0.7)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
+    ctx.globalAlpha = 0.9 * boilAlpha;
+    ctx.drawImage(overC, 0, 0);
+    ctx.restore();
+  }
+}
+function requestCompose() {
+  if (frameQueued) return;
+  frameQueued = true;
+  requestAnimationFrame(function () { frameQueued = false; compose(); });
+}
+function ease(p) { return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; }
+function animate(ms, step, done) {
+  busy = true; updateUI();
+  var t0 = performance.now();
+  function f(now) {
+    var p = Math.min(1, (now - t0) / ms);
+    step(p);
+    if (p < 1) requestAnimationFrame(f);
+    else { busy = false; if (done) done(); updateUI(); }
+  }
+  requestAnimationFrame(f);
+}
+
+function drawStamp(ctx, shape, x, y, size) {
+  var r = 10 + size * 1.6;
+  ctx.fillStyle = '#000'; ctx.strokeStyle = '#000'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (shape === 'flower') {
+    for (var i = 0; i < 5; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5, r * 0.28, 0, 6.2832); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(x, y, r * 0.24, 0, 6.2832); ctx.fill();
+  } else if (shape === 'ring') {
+    ctx.lineWidth = Math.max(2, r * 0.22);
+    ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, 6.2832); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.2, 0, 6.2832); ctx.fill();
+  } else {
+    ctx.lineWidth = Math.max(2, r * 0.2);
+    ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.75, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.75, y); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.2, 0, 6.2832); ctx.fill();
+  }
+}
+function drawDot(ctx, p, size) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r || size * 0.6, 0, 6.2832); ctx.fill(); }
+function drawVarSeg(ctx, a, b) {
+  var dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), n = Math.max(1, Math.ceil(d / 1.1));
+  ctx.fillStyle = '#000';
+  for (var i = 0; i <= n; i++) {
+    var t = i / n;
+    ctx.beginPath(); ctx.arc(a.x + dx * t, a.y + dy * t, (a.w + (b.w - a.w) * t) / 2, 0, 6.2832); ctx.fill();
+  }
+}
+function drawStroke(ctx, s) {
+  ctx.fillStyle = '#000'; ctx.strokeStyle = '#000'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (s.type === 'stamp') { drawStamp(ctx, s.shape, s.x, s.y, s.size); return; }
+  if (s.type === 'dots') { s.pts.forEach(function (p) { drawDot(ctx, p, s.size); }); return; }
+  var p0 = s.pts[0];
+  ctx.beginPath(); ctx.arc(p0.x, p0.y, p0.w / 2, 0, 6.2832); ctx.fill();
+  for (var i = 1; i < s.pts.length; i++) drawVarSeg(ctx, s.pts[i - 1], s.pts[i]);
+}
+function rerenderPending() {
+  var c = pendC.getContext('2d'); c.clearRect(0, 0, W, H);
+  strokes.forEach(function (s) { drawStroke(c, s); });
+}
+function commitPending() {
+  waxC.getContext('2d').drawImage(pendC, 0, 0);
+  pendC.getContext('2d').clearRect(0, 0, W, H);
+  strokes = [];
+}
+function pos(e) {
+  var r = disp.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+}
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+var lastT = 0, curW = 8, wobble = 0;
+
+disp.addEventListener('pointerdown', function (e) {
+  if (busy || boiled) return;
+  e.preventDefault();
+  try { disp.setPointerCapture(e.pointerId); } catch (err) {}
+  var p = pos(e), c = pendC.getContext('2d');
+  if (tool === 'stamp') {
+    var s = { type: 'stamp', shape: stampShape, size: brush, x: p.x, y: p.y };
+    strokes.push(s); drawStroke(c, s); compose(); updateUI(); return;
+  }
+  drawing = true; lastT = performance.now();
+  if (tool === 'dots') {
+    var dp = { x: p.x, y: p.y, r: brush * 0.6 * (0.85 + Math.random() * 0.3) };
+    cur = { type: 'dots', size: brush, pts: [dp] };
+    strokes.push(cur); lastDot = p; drawDot(c, dp, brush);
+  } else {
+    curW = brush; wobble = 0;
+    var lp = { x: p.x, y: p.y, w: brush * 1.15 };
+    cur = { type: 'line', size: brush, pts: [lp] };
+    strokes.push(cur);
+    c.fillStyle = '#000'; c.beginPath(); c.arc(lp.x, lp.y, lp.w / 2, 0, 6.2832); c.fill();
+  }
+  compose();
+});
+disp.addEventListener('pointermove', function (e) {
+  if (!drawing || !cur) return;
+  var p = pos(e), c = pendC.getContext('2d'), now = performance.now();
+  if (cur.type === 'dots') {
+    if (Math.hypot(p.x - lastDot.x, p.y - lastDot.y) >= cur.size * 2.2) {
+      var dp = { x: p.x, y: p.y, r: cur.size * 0.6 * (0.85 + Math.random() * 0.3) };
+      cur.pts.push(dp); drawDot(c, dp, cur.size); lastDot = p;
+    }
+    requestCompose(); return;
+  }
+  var prev = cur.pts[cur.pts.length - 1];
+  var dx = p.x - prev.x, dy = p.y - prev.y, dist = Math.hypot(dx, dy);
+  if (dist < 0.8) return;
+  var dt = Math.max(1, now - lastT), target;
+  if (e.pointerType === 'pen' && e.pressure > 0) target = cur.size * (0.5 + e.pressure);
+  else target = cur.size * clamp(1.4 - 0.45 * (dist / dt), 0.6, 1.4);
+  curW = curW * 0.75 + target * 0.25;
+  if (dt > 90) {
+    var blob = { x: prev.x, y: prev.y, w: curW * (1.15 + Math.min(dt, 700) / 700 * 0.7) };
+    drawVarSeg(c, prev, blob); cur.pts.push(blob); prev = blob;
+  }
+  wobble = clamp(wobble + (Math.random() - 0.5) * 0.35, -0.9, 0.9);
+  var q = { x: p.x + (-dy / dist) * wobble, y: p.y + (dx / dist) * wobble, w: curW };
+  drawVarSeg(c, prev, q); cur.pts.push(q);
+  lastT = now;
+  requestCompose();
+});
+function endDraw() {
+  if (!drawing) return;
+  if (cur && cur.type === 'line' && performance.now() - lastT > 90) {
+    var last = cur.pts[cur.pts.length - 1], blob = { x: last.x, y: last.y, w: last.w * 1.6 };
+    drawVarSeg(pendC.getContext('2d'), last, blob); cur.pts.push(blob); compose();
+  }
+  drawing = false; cur = null; updateUI();
+}
+disp.addEventListener('pointerup', endDraw);
+disp.addEventListener('pointercancel', endDraw);
+
+function undoStroke() {
+  if (busy || boiled || !strokes.length) return;
+  strokes.pop(); rerenderPending(); compose(); updateUI();
+}
+var VAT = [150, 170, 70];
+function hexToRgb(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
+function genCrackle(amount) {
+  var c = crackC.getContext('2d'), t = crackTintC.getContext('2d');
+  c.clearRect(0, 0, W, H); t.clearRect(0, 0, W, H);
+  if (amount <= 0) return;
+  c.strokeStyle = '#000'; c.lineCap = 'round';
+  t.strokeStyle = 'rgba(95,60,10,0.85)'; t.lineCap = 'round';
+  function vein(x, y, ang, len, depth, wd) {
+    var cx = x, cy = y;
+    for (var i = 0; i < len; i++) {
+      ang += (Math.random() - 0.5) * 0.35;
+      if (Math.random() < 0.07) ang += (Math.random() - 0.5) * 2.0;
+      var nx = cx + Math.cos(ang) * 2.8, ny = cy + Math.sin(ang) * 2.8;
+      c.lineWidth = wd; t.lineWidth = wd;
+      c.beginPath(); c.moveTo(cx, cy); c.lineTo(nx, ny); c.stroke();
+      t.beginPath(); t.moveTo(cx, cy); t.lineTo(nx, ny); t.stroke();
+      cx = nx; cy = ny;
+      if (depth < 2 && Math.random() < 0.05) vein(cx, cy, ang + (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.7), Math.round(len * 0.5), depth + 1, wd * 0.75);
+      if (cx < -5 || cx > W + 5 || cy < -5 || cy > H + 5) break;
+    }
+  }
+  var veins = Math.round(amount * 3.2);
+  for (var i = 0; i < veins; i++) vein(Math.random() * W, Math.random() * H, Math.random() * 6.283, 25 + Math.floor(Math.random() * 55), 0, 0.7 + Math.random() * 0.9);
+}
+function tintAt(a, b, t) {
+  var col = 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * t) + ',' + Math.round(a[1] + (b[1] - a[1]) * t) + ',' + Math.round(a[2] + (b[2] - a[2]) * t) + ')';
+  var c = tintC.getContext('2d');
+  c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, W, H);
+  c.fillStyle = col; c.fillRect(0, 0, W, H);
+  c.globalCompositeOperation = 'destination-in'; c.drawImage(maskC, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+}
+function doDip() {
+  if (busy || boiled || dipCount >= 3) return;
+  commitPending();
+  genCrackle(crackAmount);
+  var cw = cwaxC.getContext('2d');
+  cw.globalCompositeOperation = 'source-over'; cw.clearRect(0, 0, W, H);
+  cw.drawImage(waxC, 0, 0);
+  cw.globalCompositeOperation = 'destination-out'; cw.drawImage(crackC, 0, 0);
+  cw.globalCompositeOperation = 'source-over';
+  var m = maskC.getContext('2d');
+  m.globalCompositeOperation = 'source-over'; m.clearRect(0, 0, W, H);
+  m.fillStyle = '#000'; m.fillRect(0, 0, W, H);
+  m.globalCompositeOperation = 'destination-out'; m.drawImage(cwaxC, 0, 0);
+  m.globalCompositeOperation = 'source-over';
+
+  var dye = dyes[dyeIndex], to = hexToRgb(dye.hex), from = dye.oxidizes ? VAT : to;
+  function finish() {
+    tintAt(from, to, 1);
+    var c = colorC.getContext('2d');
+    c.save(); c.globalCompositeOperation = 'multiply'; c.drawImage(tintC, 0, 0); c.restore();
+    dipCount++; statusOverride = ''; compose();
+  }
+  statusOverride = crackAmount > 0 ? 'Dipping: the wax cracks, and dye seeps through the hairline cracks.' : 'Dipping the cloth into the dye.';
+  animate(900, function (p) {
+    tintAt(from, to, 0);
+    compose({ canvas: tintC, alpha: ease(p), crackAlpha: Math.sin(Math.PI * p) });
+  }, function () {
+    if (dye.oxidizes) {
+      statusOverride = 'Look closely: indigo comes out of the vat yellow-green and turns blue as it meets the air.';
+      updateUI();
+      animate(2600, function (p) { tintAt(from, to, ease(p)); compose({ canvas: tintC, alpha: 1 }); }, finish);
+    } else finish();
+  });
+}
+function boil() {
+  if (busy || boiled || dipCount < 1) return;
+  commitPending();
+  animate(1000, function (p) { boilAlpha = 1 - ease(p); compose(); }, function () {
+    boiled = true; boilAlpha = 0; compose(); renderWear();
+  });
+}
+
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('[data-tool]').forEach(function (b) { b.classList.toggle('active', b.dataset.tool === t); });
+  document.getElementById('stampShapes').hidden = t !== 'stamp';
+}
+function setShape(s) {
+  stampShape = s;
+  document.querySelectorAll('[data-shape]').forEach(function (b) { b.classList.toggle('active', b.dataset.shape === s); });
+}
+function setCrack(v) { crackAmount = parseInt(v, 10); document.getElementById('crackVal').textContent = v; }
+function setBrush(v) { brush = parseInt(v, 10); document.getElementById('brushVal').textContent = v; }
+function buildDyes() {
+  var grid = document.getElementById('dyeGrid');
+  grid.innerHTML = '';
+  dyes.forEach(function (d, i) {
+    var b = document.createElement('button');
+    b.className = 'dye-btn' + (i === dyeIndex ? ' active' : '');
+    b.style.background = d.hex; b.title = d.name;
+    b.onclick = function () { dyeIndex = i; buildDyes(); };
+    grid.appendChild(b);
+  });
+  document.getElementById('dyeName').textContent = 'Dye: ' + dyes[dyeIndex].name + (dyes[dyeIndex].oxidizes ? ' (comes out of the vat green, then turns blue in the air)' : '');
+}
+
+function updateUI() {
+  var hasPending = strokes.length > 0;
+  var phase = boiled ? 'boil' : (dipCount > 0 && !hasPending ? 'dip' : 'wax');
+  document.getElementById('chipWax').classList.toggle('active', phase === 'wax');
+  document.getElementById('chipDip').classList.toggle('active', phase === 'dip');
+  document.getElementById('chipBoil').classList.toggle('active', phase === 'boil');
+  var msg;
+  if (statusOverride) msg = statusOverride;
+  else if (boiled) msg = 'The wax is boiled out. Wherever wax was, the cloth kept the color it had at that moment. Scroll down to see your cloth as a scarf.';
+  else if (dipCount === 0) msg = 'Step 1: draw with hot wax. Wax resists dye, so anything you draw will stay cream. Then pick a dye and dip the cloth.';
+  else if (dipCount < 3) msg = 'Dip ' + dipCount + ' done. Draw more wax over anything you want to keep this color, then dip in a darker dye. Batik artists work from light to dark. Or boil out the wax to finish.';
+  else msg = 'Three dips is the limit for this cloth. Time to boil out the wax and reveal your design.';
+  document.getElementById('status').textContent = msg;
+  document.getElementById('dipCount').textContent = 'Dips: ' + dipCount + ' of 3';
+  document.getElementById('dipBtn').textContent = dipCount === 0 ? 'Dip in dye' : 'Dip again';
+  document.getElementById('dipBtn').disabled = busy || boiled || dipCount >= 3;
+  document.getElementById('boilBtn').disabled = busy || boiled || dipCount < 1;
+  document.getElementById('undoBtn').disabled = busy || boiled || !hasPending;
+}
+
+/* ---------- Wear it ---------- */
+var wearScale = 0.5, wearCloth = null;
+var wearCanvas = document.getElementById('wearCanvas');
+
+function setWearScale(v) { wearScale = parseInt(v, 10) / 100; document.getElementById('scaleVal').textContent = v + '%'; paintGarment(); }
+
+function renderWear() {
+  if (mode === 'pattern') makePatternCanvas(function (c) { wearCloth = c; paintGarment(); });
+  else { wearCloth = boiled ? colorC : null; paintGarment(); }
+}
+
+function paintGarment() {
+  var ctx = wearCanvas.getContext('2d');
+  var msg = document.getElementById('wearMsg');
+  ctx.clearRect(0, 0, 360, 240);
+  if (!wearCloth) {
+    msg.hidden = false;
+    msg.textContent = 'Finish your cloth first: dip it in dye, then boil out the wax. Your scarf will appear here.';
+    return;
+  }
+  msg.hidden = true;
+  var path = new Path2D('M44,50 Q112,22 180,50 T316,50 L316,180 Q248,208 180,180 T44,180 Z');
+
+  ctx.save();
+  ctx.clip(path);
+  var pat = ctx.createPattern(wearCloth, 'repeat');
+  if (pat.setTransform) pat.setTransform(new DOMMatrix().scale(wearScale));
+  ctx.fillStyle = pat; ctx.fillRect(0, 0, 360, 240);
+  var grad = ctx.createLinearGradient(0, 0, 360, 0);
+  grad.addColorStop(0, 'rgba(255,255,255,0.12)'); grad.addColorStop(0.5, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.2)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 360, 240);
+  ctx.strokeStyle = 'rgba(0,0,0,0.09)'; ctx.lineWidth = 2;
+  [100, 150, 215, 265].forEach(function (x) {
+    ctx.beginPath(); ctx.moveTo(x, 40); ctx.quadraticCurveTo(x + 10, 115, x - 4, 195); ctx.stroke();
+  });
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 3;
+  [125, 240].forEach(function (x) {
+    ctx.beginPath(); ctx.moveTo(x, 40); ctx.quadraticCurveTo(x - 8, 115, x + 4, 195); ctx.stroke();
+  });
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(30,25,15,0.55)'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.stroke(path);
+
+  ctx.strokeStyle = 'rgba(60,50,40,0.6)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for (var y = 56; y <= 176; y += 9) {
+    ctx.beginPath(); ctx.moveTo(44, y); ctx.lineTo(25, y + 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(316, y); ctx.lineTo(335, y + 2); ctx.stroke();
+  }
+}
+
+/* ---------- Mode switching ---------- */
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeBtnPattern').classList.toggle('active', m === 'pattern');
+  document.getElementById('modeBtnWax').classList.toggle('active', m === 'wax');
+  document.getElementById('patternStudio').hidden = m !== 'pattern';
+  document.getElementById('waxStudio').hidden = m !== 'wax';
+  renderWear();
+}
+
+applyPattern();
+buildDyes();
+resetCloth();
+setMode('pattern');
+</script>
+</body>
+</html>
